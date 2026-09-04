@@ -1,4 +1,4 @@
-# 🔍 FinSpectra — Multi-Agent Financial Crime Investigation Engine
+# FinSpectra — Multi-Agent Financial Crime Investigation Engine
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-2.0+-green.svg)](https://fastapi.tiangolo.com/)
