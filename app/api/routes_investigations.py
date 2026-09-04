@@ -97,3 +97,124 @@ def get_case(case_id: str, db: Session = Depends(get_db)):
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
     return {"id": case.id, "decision": case.decision, "score": case.final_risk_score, "state": case.state_snapshot_json}
+
+
+@router.get("/cases/{case_id}/detail")
+def get_case_detail(case_id: str, db: Session = Depends(get_db)):
+    """
+    Full investigation workspace payload for the frontend investigation view.
+    Returns structured state snapshot with all agent evidence, risk scores, and dossier.
+    """
+    case = db.query(InvestigationCase).filter(InvestigationCase.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    state = case.state_snapshot_json or {}
+    behavioral = state.get("behavioral_metrics") or {}
+    graph = state.get("graph_metrics") or {}
+    subscores = behavioral.get("risk_subscores") or {}
+
+    # Build structured task list with agent mapping
+    task_list = state.get("task_list") or []
+    agent_map = {
+        "FETCH_EVIDENCE": "Evidence Retrieval",
+        "VERIFY_KYC": "KYC Verifier",
+        "ANALYZE_BEHAVIOR": "Behavioral Analyzer",
+        "ANALYZE_GRAPH": "Graph Analyst",
+    }
+    tasks_display = [
+        {
+            "task_id": t.get("task_id"),
+            "name": t.get("name"),
+            "agent_label": agent_map.get(t.get("name", ""), t.get("name", "")),
+            "status": t.get("status"),
+            "required_evidence_key": t.get("required_evidence_key"),
+        }
+        for t in task_list
+    ]
+
+    # Transaction ledger from state
+    ledger = state.get("ledger_history") or []
+
+    return {
+        "case_id": case.id,
+        "alert_id": case.alert_id,
+        "entity_id": case.entity_id,
+        "status": case.status,
+        "priority_score": case.priority_score,
+        "priority_band": case.priority_band,
+        "created_at": case.created_at.isoformat() if case.created_at else None,
+        "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+
+        # Final outputs
+        "final_risk_score": case.final_risk_score,
+        "decision": case.decision,
+
+        # Plan & tasks
+        "investigation_plan": state.get("investigation_plan") or [],
+        "task_list": tasks_display,
+        "plan_satisfied": state.get("plan_satisfied", False),
+        "missing_evidence": state.get("missing_evidence") or [],
+        "loop_count": state.get("loop_count", 0),
+
+        # Typology
+        "typology_classification": state.get("typology_classification", ""),
+        "typology_rationale": state.get("typology_rationale", ""),
+        "alert_type": state.get("alert_type", ""),
+
+        # Evidence summary
+        "evidence_summary": {
+            "ledger_count": len(ledger),
+            "ledger_history": ledger,
+            "kyc_notes": state.get("kyc_notes", ""),
+            "balance_history": state.get("balance_history") or {},
+            "historical_cases_count": len(state.get("historical_cases") or []),
+        },
+
+        # Behavioral metrics
+        "behavioral_metrics": {
+            "velocity_z_score": behavioral.get("velocity_z_score", 0.0),
+            "pass_through_ratio": behavioral.get("pass_through_ratio", 0.0),
+            "total_volume_in": behavioral.get("total_volume_in", 0.0),
+            "total_volume_out": behavioral.get("total_volume_out", 0.0),
+            "trigger_amount": behavioral.get("trigger_amount", 0.0),
+            "historical_mean": behavioral.get("historical_mean", 0.0),
+            "historical_stddev": behavioral.get("historical_stddev", 0.0),
+            "effective_stddev": behavioral.get("effective_stddev", 0.0),
+            "historical_transaction_count": behavioral.get("historical_transaction_count", 0),
+            "velocity_baseline_status": behavioral.get("velocity_baseline_status", ""),
+            "risk_explanation": behavioral.get("risk_explanation", ""),
+        },
+
+        # Graph metrics
+        "graph_metrics": {
+            "account_count": graph.get("account_count", 0),
+            "beneficiary_count": graph.get("beneficiary_count", 0),
+            "device_count": graph.get("device_count", 0),
+            "transaction_count": graph.get("transaction_count", 0),
+            "unique_beneficiaries": graph.get("unique_beneficiaries", 0),
+            "tx_per_account": graph.get("tx_per_account", 0.0),
+            "beneficiary_dispersion_ratio": graph.get("beneficiary_dispersion_ratio", 0.0),
+            "multi_beneficiary_flag": graph.get("multi_beneficiary_flag", 0),
+            "multi_device_multi_beneficiary_flag": graph.get("multi_device_multi_beneficiary_flag", False),
+            "self_transfer_detected": graph.get("self_transfer_detected", False),
+            "fan_in_ratio": graph.get("fan_in_ratio", 0.0),
+            "fan_out_ratio": graph.get("fan_out_ratio", 0.0),
+        },
+
+        # Risk scoring breakdown
+        "risk_scoring": {
+            "final_score": case.final_risk_score,
+            "decision": case.decision,
+            "subscores": {
+                "phase1_prior": subscores.get("phase1_prior", 0.0),
+                "behavior": subscores.get("behavior", 0.0),
+                "graph": subscores.get("graph", 0.0),
+                "kyc": subscores.get("kyc", 0.0),
+            },
+            "explanation": behavioral.get("risk_explanation", ""),
+        },
+
+        # SAR dossier
+        "dossier": state.get("dossier", ""),
+    }

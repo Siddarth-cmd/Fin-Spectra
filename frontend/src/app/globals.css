@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Unconditional Dark Baseline */
+html, body {
+  background-color: #080B11 !important;
+  color: #F1F5F9 !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Sleek Cyber/Dark Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #080C14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00E5FF;
+}
+
+/* Glassmorphic Panel Utility */
+.glass-panel {
+  background: rgba(13, 19, 31, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 229, 255, 0.12);
+}
+
+.glass-panel-subtle {
+  background: rgba(13, 19, 31, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(14, 21, 35, 0.8) 0%, rgba(10, 15, 26, 0.8) 100%);
+  border: 1px solid rgba(34, 211, 238, 0.12);
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+}
+
+.glass-card:hover {
+  border-color: rgba(34, 211, 238, 0.25);
+}
+
+/* Pulsing Live Dot */
+@keyframes pulse-cyan {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.8), 0 0 20px rgba(0, 229, 255, 0.4);
+  }
+  50% {
+    opacity: 0.4;
+    box-shadow: 0 0 4px rgba(0, 229, 255, 0.4);
+  }
+}
+
+.pulse-live {
+  animation: pulse-cyan 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Risk Glowing Indicators */
+.risk-glow-critical {
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.35);
+}
+
+.risk-glow-high {
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35);
+}
+
+.risk-glow-medium {
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.35);
+}
+
+.risk-glow-low {
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.35);
+}
