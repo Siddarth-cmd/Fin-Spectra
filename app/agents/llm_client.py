@@ -1,12 +1,21 @@
 import os
 from ..config import settings
-from groq import Groq
-from langchain_core.messages import HumanMessage, SystemMessage
+
+try:
+    from groq import Groq
+    HAS_GROQ = True
+except ImportError:
+    HAS_GROQ = False
 
 class LLMClient:
     def __init__(self):
-        self.mock_mode = settings.mock_llm_mode or not settings.groq_api_key or settings.groq_api_key == "gsk_placeholder"
-        if not self.mock_mode:
+        self.mock_mode = (
+            settings.mock_llm_mode
+            or not settings.groq_api_key
+            or settings.groq_api_key == "gsk_placeholder"
+            or not HAS_GROQ
+        )
+        if not self.mock_mode and HAS_GROQ:
             self.client = Groq(api_key=settings.groq_api_key)
         self.model = settings.groq_model
 
@@ -28,10 +37,10 @@ class LLMClient:
     def _mock_generate(self, system_prompt: str, user_prompt: str) -> str:
         # Simple offline deterministic mock fallback based on keywords
         if "typology" in system_prompt.lower():
-            return "Based on the evidence, the primary typology is STRUCTURING, due to consecutive sub-threshold deposits."
+            return '{\n  "typology": "LAYERING",\n  "rationale": "High-velocity multi-account pass-through transfers and rapid transaction dispersion."\n}'
         if "plan" in system_prompt.lower():
             return "1. Review counterparty flows.\n2. Verify KYC occupation.\n3. Ascertain source of funds."
-        if "dossier" in system_prompt.lower() or "SAR" in system_prompt.lower():
-            return "## Suspicious Activity Report Draft\n\nThe entity engaged in rapid velocity pass-throughs indicative of layering."
+        if "dossier" in system_prompt.lower() or "sar" in system_prompt.lower():
+            return "## Suspicious Activity Report (SAR) Draft\n\n### Executive Summary\nThe entity engaged in rapid velocity pass-throughs indicative of layering and multi-device transaction dispersion."
         
         return "Mock response generated (Offline mode)."

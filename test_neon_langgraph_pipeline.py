@@ -3,10 +3,11 @@ from app.database import SessionLocal
 from app.repositories import AlertRepository
 from app.agents.state import create_initial_state_from_neon_alert
 from app.agents.graph import investigation_graph
+from app.models.schema import InvestigationCase
 
-def test_neon_to_langgraph_flow():
+def test_neon_to_langgraph_full_pipeline():
     print("=" * 70)
-    print(" 🚀 NEON DB -> INVESTIGATION STATE -> LANGGRAPH FLOW TEST")
+    print(" 🚀 NEON DB -> INVESTIGATION STATE -> LANGGRAPH COMPLETE FLOW TEST")
     print("=" * 70)
 
     db = SessionLocal()
@@ -27,32 +28,47 @@ def test_neon_to_langgraph_flow():
 
         print("\n[2] CREATING INITIAL INVESTIGATION STATE...")
         initial_state = create_initial_state_from_neon_alert(enriched_alert)
-        
-        print(f" -> Case ID: {initial_state['case_id']}")
-        print(f" -> Alert ID: {initial_state['alert_id']}")
-        print(f" -> Entity ID: {initial_state['entity_id']}")
-        print(f" -> Alert Type: {initial_state['alert_type']}")
-        print(f" -> Priority Score: {initial_state['raw_priority_score']}")
-        print(f" -> Trigger Evidence Keys: {list(initial_state['trigger_evidence'].keys())}")
 
         print("\n[3] INVOKING LANGGRAPH INVESTIGATION PIPELINE...")
         config = {"configurable": {"thread_id": initial_state["case_id"]}}
         final_state = investigation_graph.invoke(initial_state, config=config)
 
-        print("\n[4] LANGGRAPH EXECUTION RESULT:")
-        print(f" -> Plan Satisfied: {final_state.get('plan_satisfied')}")
-        print(f" -> Investigation Plan Steps: {final_state.get('investigation_plan')}")
-        print(f" -> Task List: {[t.get('name') + ':' + t.get('status') for t in final_state.get('task_list', [])]}")
-        print(f" -> Missing Evidence: {final_state.get('missing_evidence')}")
-        print(f" -> Ledger History Records: {len(final_state.get('ledger_history', []))}")
-        print(f" -> KYC Notes: {final_state.get('kyc_notes')}")
-        print(f" -> Derived Graph Metrics:\n{json.dumps(final_state.get('graph_metrics', {}), indent=2)}")
+        print("\n[4] VERIFYING NEON DB PERSISTENCE OF INVESTIGATION CASE & SNAPSHOT...")
+        saved_case = db.query(InvestigationCase).filter(InvestigationCase.id == final_state["case_id"]).first()
+        snapshot = saved_case.state_snapshot_json if saved_case else {}
 
-        print("\n✅ FLOW COMPLETED SUCCESSFULLY: Neon -> InvestigationState -> LangGraph")
+        behavior = final_state.get("behavioral_metrics", {})
+        subscores = behavior.get("risk_subscores", {})
+
+        print("\n" + "=" * 70)
+        print(" 📊 COMPLETE PIPELINE OUTPUT SUMMARY")
+        print("=" * 70)
+        print(f" -> Alert ID:                {final_state.get('alert_id')}")
+        print(f" -> Plan Satisfied:          {final_state.get('plan_satisfied')}")
+        print(f" -> Typology Classification: {final_state.get('typology_classification')}")
+        print(f" -> Typology Rationale:      {final_state.get('typology_rationale')[:120]}...")
+        print(f" -> Subscores:               {json.dumps(subscores)}")
+        print(f" -> Final Risk Score:        {final_state.get('final_risk_score')}")
+        print(f" -> Decision:                {final_state.get('decision')}")
+        print(f" -> Dossier Snippet:\n{final_state.get('dossier')[:200]}...")
+        print("=" * 70)
+        print(" 💾 NEON DB PERSISTED SNAPSHOT VERIFICATION:")
+        print(f" -> DB Typology in Snapshot: {snapshot.get('typology_classification')}")
+        print(f" -> DB Decision in Snapshot: {snapshot.get('decision')}")
+        print(f" -> DB Dossier in Snapshot:  {bool(snapshot.get('dossier'))}")
+        print("=" * 70)
+
+        # Assertions
+        assert saved_case is not None, "InvestigationCase record was not persisted to Neon DB!"
+        assert saved_case.decision == final_state["decision"], "Persisted decision does not match final_state!"
+        assert "typology_classification" in snapshot, "Missing typology_classification in DB snapshot!"
+        assert "dossier" in snapshot, "Missing dossier in DB snapshot!"
+
+        print("\n✅ COMPLETE PIPELINE VERIFIED SUCCESSFULLY WITH ZERO ERRORS!")
         print("=" * 70)
 
     finally:
         db.close()
 
 if __name__ == "__main__":
-    test_neon_to_langgraph_flow()
+    test_neon_to_langgraph_full_pipeline()

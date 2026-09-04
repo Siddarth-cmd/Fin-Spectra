@@ -8,6 +8,9 @@ from .nodes.behavior_analyzer import behavior_analyzer_node
 from .nodes.graph_analyst import graph_analyst_node
 from .nodes.kyc_verifier import kyc_verifier_node
 from .nodes.plan_checker import plan_checker_node
+from .nodes.typology_classifier import typology_classifier_node
+from .nodes.scoring_node import scoring_node
+from .nodes.case_assembler import case_assembler_node
 
 def route_next_task(state: InvestigationState):
     """
@@ -30,26 +33,28 @@ def route_next_task(state: InvestigationState):
 
 def route_on_plan_satisfaction(state: InvestigationState):
     """
-    Stops workflow execution at Plan Satisfaction Check (END).
-    If unsatisfied and loop count < 2, retries missing tasks.
+    Routes to typology_classifier once plan is satisfied or loop limit reached.
     """
     if state.get("plan_satisfied"):
-        return END
+        return "typology_classifier"
     elif state.get("loop_count", 0) < 2:
         return "task_planner"
     else:
-        return END
+        return "typology_classifier"
 
 def create_investigation_graph():
     builder = StateGraph(InvestigationState)
     
-    # 1. Add Task Planning & Evidence Gathering Nodes
+    # 1. Add All Pipeline Nodes
     builder.add_node("task_planner", task_planner_node)
     builder.add_node("evidence_retrieval", evidence_retrieval_node)
     builder.add_node("behavior_analyzer", behavior_analyzer_node)
     builder.add_node("graph_analyst", graph_analyst_node)
     builder.add_node("kyc_verifier", kyc_verifier_node)
     builder.add_node("plan_checker", plan_checker_node)
+    builder.add_node("typology_classifier", typology_classifier_node)
+    builder.add_node("scoring_node", scoring_node)
+    builder.add_node("case_assembler", case_assembler_node)
     
     # Entry Point: Task Planner studies alert JSON and generates task_list
     builder.set_entry_point("task_planner")
@@ -70,15 +75,20 @@ def create_investigation_graph():
     builder.add_conditional_edges("behavior_analyzer", route_next_task, task_routes)
     builder.add_conditional_edges("graph_analyst", route_next_task, task_routes)
     
-    # Plan Satisfaction Router -> Ends at plan_checker
+    # Plan Satisfaction Router -> Routes to typology_classifier
     builder.add_conditional_edges(
         "plan_checker",
         route_on_plan_satisfaction,
         {
             "task_planner": "task_planner",
-            END: END
+            "typology_classifier": "typology_classifier"
         }
     )
+    
+    # Linear Downstream Sequence: Typology -> Scoring -> Case Assembler -> END
+    builder.add_edge("typology_classifier", "scoring_node")
+    builder.add_edge("scoring_node", "case_assembler")
+    builder.add_edge("case_assembler", END)
     
     memory = MemorySaver()
     return builder.compile(checkpointer=memory)
