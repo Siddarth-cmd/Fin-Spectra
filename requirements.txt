@@ -1,0 +1,12 @@
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+SQLAlchemy>=2.0.0
+groq>=0.9.0
+langgraph>=0.0.60
+langchain-core>=0.2.0
+scikit-learn>=1.3.0
+networkx>=3.0
+pandas>=2.0.0
+pytest>=7.0.0
