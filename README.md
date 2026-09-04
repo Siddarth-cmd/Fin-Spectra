@@ -9,23 +9,23 @@
 
 ---
 
-## 🌟 Key Features
+##  Key Features
 
-- 🌉 **Phase-1 REST API Bridge**: Accepts incoming raw JSON alert payloads from legacy triage engines and normalizes them into structured investigation state via a flexible Pydantic adapter (`ClassifiedAlert`).
-- 🤖 **Task-Driven LangGraph Engine**: Dynamically plans, queues, routes, and validates multi-agent forensic tasks based on detected money laundering typologies (`STRUCTURING`, `FAN_IN`, `FAN_OUT`, `RAPID_PASS_THROUGH`).
-- 🕵️‍♂️ **Specialized Evidence Agents**:
+-  **Phase-1 REST API Bridge**: Accepts incoming raw JSON alert payloads from legacy triage engines and normalizes them into structured investigation state via a flexible Pydantic adapter (`ClassifiedAlert`).
+-  **Task-Driven LangGraph Engine**: Dynamically plans, queues, routes, and validates multi-agent forensic tasks based on detected money laundering typologies (`STRUCTURING`, `FAN_IN`, `FAN_OUT`, `RAPID_PASS_THROUGH`).
+-  **Specialized Evidence Agents**:
   - **Evidence Retrieval Agent**: Queries transaction history, account records, and prior case memories.
   - **KYC Verifier Agent**: Cross-references customer profiles and occupations against transaction volume.
   - **Behavior Analyzer Agent**: Calculates statistical velocity Z-scores, volume surges, and pass-through ratios.
   - **Graph Analyst Agent**: Analyzes 2-hop topological network structures for hub nodes, circular flows, and shell intermediaries.
-- 🎯 **Plan Satisfaction Checker**: Validates task completion and evidence integrity before routing to scoring; automatically retries incomplete plans.
-- ⚖️ **Risk Scoring & Decision Engine**: Combines rule-based risk scoring with LLM-backed reasoning to assign actionable outcomes: `ALLOW`, `REVIEW`, or `BLOCK`.
-- 📝 **Automated SAR Dossier Generation**: Generates comprehensive narrative summaries suitable for regulatory filing.
-- ⚡ **Offline Mock Fallback**: Seamlessly runs with full offline capability when Groq API keys are absent.
+-  **Plan Satisfaction Checker**: Validates task completion and evidence integrity before routing to scoring; automatically retries incomplete plans.
+-  **Risk Scoring & Decision Engine**: Combines rule-based risk scoring with LLM-backed reasoning to assign actionable outcomes: `ALLOW`, `REVIEW`, or `BLOCK`.
+-  **Automated SAR Dossier Generation**: Generates comprehensive narrative summaries suitable for regulatory filing.
+-  **Offline Mock Fallback**: Seamlessly runs with full offline capability when Groq API keys are absent.
 
 ---
 
-## 🏗️ Architecture & Workflow
+## Architecture & Workflow
 
 ```mermaid
 flowchart TD
@@ -56,7 +56,7 @@ flowchart TD
 
 ---
 
-## 📂 Repository Structure
+## Repository Structure
 
 ```
 finspectra/
@@ -93,7 +93,7 @@ finspectra/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -148,7 +148,7 @@ PORT=8000
 
 ---
 
-## 💻 Running the Application
+## Running the Application
 
 ### Start the FastAPI Backend Server
 
@@ -167,7 +167,7 @@ Once the server is running, open your browser:
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 ### 1. Run Multi-Agent Investigation
 - **Endpoint**: `POST /api/investigations/run`
@@ -200,7 +200,7 @@ Once the server is running, open your browser:
 
 ---
 
-## 🧪 Testing & Demonstrations
+## Testing & Demonstrations
 
 ### 1. Phase-1 REST Payload Integration Test
 Verifies end-to-end compatibility between Phase-1 JSON structures and Phase-2 state initialization:
@@ -216,6 +216,6 @@ python demo_test.py
 
 ---
 
-## 🛡️ License
+## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
