@@ -9,17 +9,29 @@ except ImportError:
 
 class LLMClient:
     def __init__(self):
-        self.mock_mode = (
-            settings.mock_llm_mode
-            or not settings.groq_api_key
-            or settings.groq_api_key == "gsk_placeholder"
-            or not HAS_GROQ
-        )
+        env_name = getattr(settings, "environment", getattr(settings, "env", "development")).lower()
+        is_production = env_name == "production"
+
+        missing_key = not settings.groq_api_key or settings.groq_api_key == "gsk_placeholder"
+        should_mock = settings.mock_llm_mode or missing_key or not HAS_GROQ
+
+        if is_production and should_mock:
+            raise RuntimeError(
+                "Production LLM Configuration Error: Cannot run in mock mode in production. "
+                "Ensure GROQ_API_KEY is configured and groq package is installed."
+            )
+
+        self.mock_mode = should_mock
+
         if not self.mock_mode and HAS_GROQ:
-            self.client = Groq(api_key=settings.groq_api_key)
+            self.client = Groq(
+                api_key=settings.groq_api_key,
+                timeout=20.0,
+                max_retries=3
+            )
         self.model = settings.groq_model
 
-    def generate(self, system_prompt: str, user_prompt: str) -> str:
+    def generate(self, system_prompt: str, user_prompt: str, max_tokens: int = 1024) -> str:
         if self.mock_mode:
             return self._mock_generate(system_prompt, user_prompt)
             
@@ -30,7 +42,7 @@ class LLMClient:
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.1,
-            max_tokens=1024,
+            max_tokens=max_tokens,
         )
         return completion.choices[0].message.content
 

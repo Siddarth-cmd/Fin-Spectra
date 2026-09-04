@@ -34,10 +34,11 @@ def task_planner_node(state: InvestigationState) -> InvestigationState:
         ]
         plan_desc = ["Retrieve ledger and past cases", "Perform KYC verification", "Compute behavioral metrics", "Analyze 2-hop transaction network graph"]
 
-    state["task_list"] = tasks
-    state["investigation_plan"] = plan_desc
-    state["plan_satisfied"] = False
-    state["loop_count"] = 0
-    state["missing_evidence"] = []
+    if not state.get("task_list"):
+        state["task_list"] = tasks
+        state["investigation_plan"] = plan_desc
+        state["plan_satisfied"] = False
+        state["loop_count"] = 0
+        state["missing_evidence"] = []
     
     return state

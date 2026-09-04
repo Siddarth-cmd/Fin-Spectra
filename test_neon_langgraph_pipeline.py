@@ -3,7 +3,7 @@ from app.database import SessionLocal
 from app.repositories import AlertRepository
 from app.agents.state import create_initial_state_from_neon_alert
 from app.agents.graph import investigation_graph
-from app.models.schema import InvestigationCase
+from app.models.schema import Alert, InvestigationCase
 
 def test_neon_to_langgraph_full_pipeline():
     print("=" * 70)
@@ -37,6 +37,12 @@ def test_neon_to_langgraph_full_pipeline():
         saved_case = db.query(InvestigationCase).filter(InvestigationCase.id == final_state["case_id"]).first()
         snapshot = saved_case.state_snapshot_json if saved_case else {}
 
+        if saved_case and saved_case.status == "CLOSED":
+            # Complete original alert lifecycle in Neon DB
+            repo.complete_alert(alert_id)
+
+        alert_in_db = db.query(Alert).filter(Alert.alert_id == alert_id).first()
+
         behavior = final_state.get("behavioral_metrics", {})
         subscores = behavior.get("risk_subscores", {})
 
@@ -56,6 +62,8 @@ def test_neon_to_langgraph_full_pipeline():
         print(f" -> DB Typology in Snapshot: {snapshot.get('typology_classification')}")
         print(f" -> DB Decision in Snapshot: {snapshot.get('decision')}")
         print(f" -> DB Dossier in Snapshot:  {bool(snapshot.get('dossier'))}")
+        print(f" -> Alert Status in DB:      {alert_in_db.status if alert_in_db else 'UNKNOWN'}")
+        print(f" -> Case Status in DB:       {saved_case.status if saved_case else 'UNKNOWN'}")
         print("=" * 70)
 
         # Assertions
@@ -63,8 +71,9 @@ def test_neon_to_langgraph_full_pipeline():
         assert saved_case.decision == final_state["decision"], "Persisted decision does not match final_state!"
         assert "typology_classification" in snapshot, "Missing typology_classification in DB snapshot!"
         assert "dossier" in snapshot, "Missing dossier in DB snapshot!"
+        assert alert_in_db.status == "CLOSED", f"Expected Alert status to be CLOSED, got {alert_in_db.status}"
 
-        print("\n✅ COMPLETE PIPELINE VERIFIED SUCCESSFULLY WITH ZERO ERRORS!")
+        print("\n✅ COMPLETE PIPELINE & LIFECYCLE VERIFIED SUCCESSFULLY WITH ZERO ERRORS!")
         print("=" * 70)
 
     finally:
