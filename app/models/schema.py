@@ -14,7 +14,7 @@ except ImportError:
         model_config = {}
 
 try:
-    from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON
+    from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, JSON, Numeric
     from sqlalchemy.orm import relationship
     from ..database import Base
     HAS_SQLALCHEMY = True
@@ -23,46 +23,98 @@ except ImportError:
     Base = object
 
 # ==========================================
-# SQLAlchemy Models (Database)
+# SQLAlchemy Models (Neon PostgreSQL Database)
 # ==========================================
 
 if HAS_SQLALCHEMY:
+    class Customer(Base):
+        __tablename__ = "customers"
+
+        customer_id = Column(String(20), primary_key=True, index=True)
+        name = Column(String(100))
+        risk_level = Column(String(20))
+        account_age_days = Column(Integer)
+        occupation = Column(String(100), nullable=True)
+        created_at = Column(DateTime, default=datetime.utcnow)
+
+        accounts = relationship("Account", back_populates="customer")
+        beneficiaries = relationship("Beneficiary", back_populates="customer")
+        devices = relationship("Device", back_populates="customer")
+        transactions = relationship("Transaction", back_populates="customer")
+        alerts = relationship("Alert", back_populates="customer")
+
     class Account(Base):
         __tablename__ = "accounts"
 
-        id = Column(String, primary_key=True, index=True)
-        customer_name = Column(String)
-        account_type = Column(String)
-        kyc_occupation = Column(String, nullable=True)
+        account_id = Column(String(20), primary_key=True, index=True)
+        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
+        account_type = Column(String(30))
+        status = Column(String(20))
         created_at = Column(DateTime, default=datetime.utcnow)
-        is_dormant = Column(Boolean, default=False)
-        
-        transactions_out = relationship("Transaction", foreign_keys="[Transaction.source_account_id]", back_populates="source_account")
-        transactions_in = relationship("Transaction", foreign_keys="[Transaction.destination_account_id]", back_populates="destination_account")
+
+        customer = relationship("Customer", back_populates="accounts")
+        transactions = relationship("Transaction", back_populates="account")
+
+    class Beneficiary(Base):
+        __tablename__ = "beneficiaries"
+
+        beneficiary_id = Column(String(20), primary_key=True, index=True)
+        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
+        name = Column(String(100))
+        account_number = Column(String(50))
+        created_at = Column(DateTime, default=datetime.utcnow)
+
+        customer = relationship("Customer", back_populates="beneficiaries")
+        transactions = relationship("Transaction", back_populates="beneficiary")
+
+    class Device(Base):
+        __tablename__ = "devices"
+
+        device_id = Column(String(30), primary_key=True)
+        customer_id = Column(String(20), ForeignKey("customers.customer_id"), primary_key=True)
+        device_type = Column(String(50))
+        first_seen = Column(DateTime)
+        last_seen = Column(DateTime)
+
+        customer = relationship("Customer", back_populates="devices")
 
     class Transaction(Base):
         __tablename__ = "transactions"
 
-        id = Column(String, primary_key=True, index=True)
-        source_account_id = Column(String, ForeignKey("accounts.id"))
-        destination_account_id = Column(String, ForeignKey("accounts.id"))
-        amount = Column(Float)
-        currency = Column(String, default="USD")
-        timestamp = Column(DateTime, default=datetime.utcnow)
-        payment_channel = Column(String) # Wire, ACH, Cash
-        
-        # Hidden Ground Truth for Evaluation
-        is_fraud_ground_truth = Column(Boolean, default=False)
-        fraud_typology_ground_truth = Column(String, nullable=True)
+        transaction_id = Column(String(20), primary_key=True, index=True)
+        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
+        account_id = Column(String(20), ForeignKey("accounts.account_id"))
+        beneficiary_id = Column(String(20), ForeignKey("beneficiaries.beneficiary_id"), nullable=True)
+        amount = Column(Numeric(15, 2))
+        transaction_type = Column(String(30))
+        transaction_timestamp = Column(DateTime, default=datetime.utcnow)
+        status = Column(String(20))
 
-        source_account = relationship("Account", foreign_keys=[source_account_id], back_populates="transactions_out")
-        destination_account = relationship("Account", foreign_keys=[destination_account_id], back_populates="transactions_in")
+        customer = relationship("Customer", back_populates="transactions")
+        account = relationship("Account", back_populates="transactions")
+        beneficiary = relationship("Beneficiary", back_populates="transactions")
+        alerts = relationship("Alert", back_populates="transaction")
 
+    class Alert(Base):
+        __tablename__ = "alerts"
+
+        alert_id = Column(String(20), primary_key=True, index=True)
+        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
+        transaction_id = Column(String(20), ForeignKey("transactions.transaction_id"))
+        alert_type = Column(String(100))
+        risk_score = Column(Numeric(5, 2))
+        status = Column(String(30), default="OPEN") # OPEN, UNDER_INVESTIGATION, RESOLVED, ESCALATED
+        created_at = Column(DateTime, default=datetime.utcnow)
+
+        customer = relationship("Customer", back_populates="alerts")
+        transaction = relationship("Transaction", back_populates="alerts")
+
+    # Legacy / Additional Models
     class RawAlert(Base):
         __tablename__ = "raw_alerts"
 
         id = Column(String, primary_key=True, index=True)
-        account_id = Column(String, ForeignKey("accounts.id"))
+        account_id = Column(String, ForeignKey("accounts.account_id"))
         rule_name = Column(String)
         trigger_evidence = Column(JSON)
         timestamp = Column(DateTime, default=datetime.utcnow)
@@ -72,7 +124,7 @@ if HAS_SQLALCHEMY:
         
         id = Column(String, primary_key=True, index=True) # CASE_ALT_...
         alert_id = Column(String, unique=True)
-        entity_id = Column(String, ForeignKey("accounts.id"))
+        entity_id = Column(String)
         status = Column(String, default="OPEN") # OPEN, CLOSED
         priority_score = Column(Float)
         priority_band = Column(String) # CRITICAL, HIGH, MEDIUM, LOW
@@ -83,9 +135,14 @@ if HAS_SQLALCHEMY:
         state_snapshot_json = Column(JSON, nullable=True) # Full LangGraph State memory
         created_at = Column(DateTime, default=datetime.utcnow)
         updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 else:
+    class Customer: pass
     class Account: pass
+    class Beneficiary: pass
+    class Device: pass
     class Transaction: pass
+    class Alert: pass
     class RawAlert: pass
     class InvestigationCase: pass
 
@@ -100,6 +157,7 @@ class ClassifiedAlert(BaseModel):
     
     entity_id: Optional[str] = None
     account_id: Optional[str] = None
+    customer_id: Optional[str] = None
     
     alert_type: str
     
@@ -121,7 +179,7 @@ class ClassifiedAlert(BaseModel):
         return self.alert_id or self.classified_alert_id or "ALT_UNKNOWN"
 
     def get_entity_id(self) -> str:
-        return self.entity_id or self.account_id or "ACC_UNKNOWN"
+        return self.entity_id or self.customer_id or self.account_id or "ACC_UNKNOWN"
 
     def get_severity(self) -> str:
         return self.severity or self.risk_level or "HIGH"

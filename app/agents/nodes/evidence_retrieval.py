@@ -1,54 +1,97 @@
 from ..state import InvestigationState
-from datetime import timedelta
+from typing import Dict, Any, List
 
 def evidence_retrieval_node(state: InvestigationState) -> InvestigationState:
     """
-    Fetches ledger history, balances, and historical cases for the entity.
+    Retrieves real evidence from trigger_evidence and Neon DB for the investigated entity.
     """
+    trigger_evidence = state.get("trigger_evidence", {})
+    entity_id = state.get("entity_id", "")
+
+    customer = trigger_evidence.get("customer") or {}
+    transaction = trigger_evidence.get("transaction") or {}
+    tx_account = trigger_evidence.get("transaction_account") or {}
+    tx_beneficiary = trigger_evidence.get("transaction_beneficiary") or {}
+    accounts = trigger_evidence.get("accounts") or []
+    beneficiaries = trigger_evidence.get("beneficiaries") or []
+    devices = trigger_evidence.get("devices") or []
+
+    # 1. Populate KYC notes from real customer & account context
+    if customer:
+        acc_type = tx_account.get("account_type") or (accounts[0].get("account_type") if accounts else "N/A")
+        state["kyc_notes"] = (
+            f"Customer: {customer.get('name', 'N/A')} (ID: {customer.get('customer_id')}) | "
+            f"Occupation: {customer.get('occupation', 'N/A')} | "
+            f"Risk Level: {customer.get('risk_level', 'N/A')} | "
+            f"Account Age: {customer.get('account_age_days', 0)} days | "
+            f"Primary Account Type: {acc_type} | "
+            f"Registered Devices: {len(devices)} | "
+            f"Beneficiaries Count: {len(beneficiaries)}"
+        )
+    else:
+        state["kyc_notes"] = "MISSING_REAL_CUSTOMER_DATA"
+
+    # 2. Populate Ledger History from real transactions (query Neon DB or fallback to trigger_evidence transaction)
+    ledger = []
     try:
         from ...database import SessionLocal
-        from ...models.schema import Account, Transaction, InvestigationCase
+        from ...models.schema import Transaction, InvestigationCase
         db = SessionLocal()
         try:
-            entity_id = state["entity_id"]
-            
-            # 1. Fetch Account info
-            acc = db.query(Account).filter(Account.id == entity_id).first()
-            if acc:
-                state["kyc_notes"] = f"Type: {acc.account_type}, Occupation: {acc.kyc_occupation}, Dormant: {acc.is_dormant}"
-            
-            # 2. Fetch Recent Transactions (Ledger)
-            txs_in = db.query(Transaction).filter(Transaction.destination_account_id == entity_id).order_by(Transaction.timestamp.desc()).limit(50).all()
-            txs_out = db.query(Transaction).filter(Transaction.source_account_id == entity_id).order_by(Transaction.timestamp.desc()).limit(50).all()
-            
-            ledger = []
-            for t in txs_in:
-                ledger.append({"id": t.id, "dir": "IN", "amount": t.amount, "channel": t.payment_channel, "time": t.timestamp.isoformat()})
-            for t in txs_out:
-                ledger.append({"id": t.id, "dir": "OUT", "amount": t.amount, "channel": t.payment_channel, "time": t.timestamp.isoformat()})
-            
-            state["ledger_history"] = sorted(ledger, key=lambda x: x["time"])
-            
-            # 3. Fetch Historical Cases (Memory)
-            past_cases = db.query(InvestigationCase).filter(InvestigationCase.entity_id == entity_id, InvestigationCase.id != state["case_id"]).all()
+            # Query Neon DB transactions for entity_id (customer_id)
+            txs = (
+                db.query(Transaction)
+                .filter(Transaction.customer_id == entity_id)
+                .order_by(Transaction.transaction_timestamp.desc())
+                .limit(50)
+                .all()
+            )
+            for t in txs:
+                ledger.append({
+                    "id": t.transaction_id,
+                    "dir": "OUT" if t.transaction_type in ["TRANSFER", "PAYMENT", "WITHDRAWAL"] else "IN",
+                    "amount": float(t.amount) if t.amount is not None else 0.0,
+                    "channel": t.transaction_type or "TRANSFER",
+                    "time": t.transaction_timestamp.isoformat() if t.transaction_timestamp else ""
+                })
+
+            # Fetch Historical Cases from DB
+            past_cases = (
+                db.query(InvestigationCase)
+                .filter(InvestigationCase.entity_id == entity_id, InvestigationCase.id != state["case_id"])
+                .all()
+            )
             state["historical_cases"] = [
                 {"case_id": c.id, "decision": c.decision, "score": c.final_risk_score} for c in past_cases
             ]
         finally:
             db.close()
     except Exception:
-        # Fallback for standalone demo / offline mode
-        if not state.get("ledger_history"):
-            state["ledger_history"] = [
-                {"id": "TX_101", "dir": "IN", "amount": 25000.0, "channel": "Wire", "time": "2026-09-04T01:00:00"},
-                {"id": "TX_102", "dir": "OUT", "amount": 24800.0, "channel": "ACH", "time": "2026-09-04T01:05:00"}
-            ]
-        if not state.get("kyc_notes"):
-            state["kyc_notes"] = "Type: Savings, Occupation: Software Engineer"
-        
-    # Mark task as completed in task list
+        pass
+
+    # If DB query returned no ledger rows, use the real primary transaction from trigger_evidence
+    if not ledger and transaction:
+        tx_type = transaction.get("transaction_type", "TRANSFER")
+        ledger.append({
+            "id": transaction.get("transaction_id", "TX_UNKNOWN"),
+            "dir": "OUT" if tx_type in ["TRANSFER", "PAYMENT", "WITHDRAWAL"] else "IN",
+            "amount": float(transaction.get("amount", 0.0)),
+            "channel": tx_type,
+            "time": transaction.get("transaction_timestamp", "")
+        })
+
+    state["ledger_history"] = sorted(ledger, key=lambda x: x.get("time", ""))
+
+    # 3. Populate Balance History summary
+    state["balance_history"] = {
+        "primary_account_id": tx_account.get("account_id", "N/A"),
+        "account_status": tx_account.get("status", "ACTIVE"),
+        "total_accounts_count": len(accounts)
+    }
+
+    # Mark FETCH_EVIDENCE task as completed
     for t in state.get("task_list", []):
         if t["name"] == "FETCH_EVIDENCE":
             t["status"] = "COMPLETED"
-            
+
     return state

@@ -51,3 +51,41 @@ class InvestigationState(TypedDict):
     final_risk_score: float
     decision: str # ALLOW, REVIEW, BLOCK
 
+def create_initial_state_from_neon_alert(enriched_alert: Dict[str, Any]) -> InvestigationState:
+    """
+    Adapter function mapping enriched Neon alert repository dictionary into an initial InvestigationState.
+    """
+    alert_data = enriched_alert.get("alert", {})
+    alert_id = str(alert_data.get("alert_id", "UNKNOWN"))
+    customer_id = str(alert_data.get("customer_id", "UNKNOWN"))
+    alert_type = str(alert_data.get("alert_type", "UNKNOWN"))
+    risk_score = float(alert_data.get("risk_score", 0.0))
+
+    case_id = f"CASE_{alert_id}"
+
+    return {
+        "case_id": case_id,
+        "alert_id": alert_id,
+        "entity_id": customer_id,
+        "alert_type": alert_type,
+        "raw_priority_score": risk_score,
+        "trigger_evidence": enriched_alert,
+        "task_list": [],
+        "current_task": "",
+        "plan_satisfied": False,
+        "historical_cases": [],
+        "ledger_history": [],
+        "balance_history": {},
+        "behavioral_metrics": {},
+        "graph_metrics": {},
+        "kyc_notes": "",
+        "typology_classification": "",
+        "typology_rationale": "",
+        "forensic_questions": [],
+        "investigation_plan": [],
+        "loop_count": 0,
+        "missing_evidence": [],
+        "dossier": "",
+        "final_risk_score": 0.0,
+        "decision": ""
+    }
