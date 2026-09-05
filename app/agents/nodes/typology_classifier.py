@@ -1,110 +1,74 @@
 import json
 from ..state import InvestigationState
+from ..tools import detect_typologies_tool
 from ..llm_client import LLMClient
 
 ALLOWED_TYPOLOGIES = {
     "STRUCTURING",
-    "LAYERING",
-    "MULE_ACCOUNT",
+    "RAPID_PASS_THROUGH",
     "FAN_IN",
     "FAN_OUT",
+    "CIRCULAR_FLOW",
+    "MULE_ACCOUNT",
     "UNKNOWN"
 }
 
 def typology_classifier_node(state: InvestigationState) -> InvestigationState:
     """
-    Uses the LLM to confirm the AML typology based on a compact evidence summary.
-    Strictly validates output against ALLOWED_TYPOLOGIES.
-    Falls back to 'UNKNOWN' on any failure or invalid output.
+    Phase 7: Real Transaction Typology Detection Agent
+    Runs deterministic detection logic for Structuring, Fan-In, Fan-Out, Rapid Pass-Through, Circular Flow
+    operating on database transactions, validated by LLM reasoning.
     """
+    ledger = state.get("ledger_history", [])
+    entity_id = state.get("entity_id", "")
+
+    # 1. Deterministic Detection Tool
+    det_results = detect_typologies_tool(ledger, entity_id)
+
+    primary_typology = det_results["primary_typology"]
+    all_typologies = det_results["all_detected_typologies"]
+    evidence_details = det_results["evidence_details"]
+
+    # 2. LLM Verification
     llm = LLMClient()
-    
     system_prompt = """
-    You are an expert AML compliance agent. Review the following evidence and determine the most likely money laundering typology.
-    Provide your answer in strict JSON format:
+    You are an expert AML compliance investigator. Review the deterministic typology detection results
+    derived from actual database transactions and confirm the primary classification.
+    Return strict JSON:
     {
-      "typology": "STRUCTURING|LAYERING|MULE_ACCOUNT|FAN_IN|FAN_OUT|UNKNOWN",
-      "rationale": "Detailed explanation of why this typology fits the evidence."
+      "typology": "STRUCTURING|RAPID_PASS_THROUGH|FAN_IN|FAN_OUT|CIRCULAR_FLOW|MULE_ACCOUNT|UNKNOWN",
+      "rationale": "Detailed evidence-grounded explanation."
     }
     """
-    
-    trigger_ev = state.get("trigger_evidence") or {}
-    trigger_tx = trigger_ev.get("transaction") or {}
-    customer = trigger_ev.get("customer") or {}
-    behavior = state.get("behavioral_metrics") or {}
-    graph = state.get("graph_metrics") or {}
 
-    evidence_summary = {
+    user_payload = {
+        "entity_id": entity_id,
         "alert_type": state.get("alert_type"),
-        "trigger_transaction": {
-            "amount": trigger_tx.get("amount", "Not available"),
-            "transaction_type": trigger_tx.get("transaction_type", trigger_tx.get("type", "Not available"))
-        },
-        "behavioral_metrics": {
-            "velocity_z_score": behavior.get("velocity_z_score", 0.0),
-            "pass_through_ratio": behavior.get("pass_through_ratio", 0.0)
-        },
-        "graph_metrics": {
-            "multi_beneficiary_flag": graph.get("multi_beneficiary_flag", 0),
-            "multi_device_multi_beneficiary_flag": graph.get("multi_device_multi_beneficiary_flag", False),
-            "self_transfer_detected": graph.get("self_transfer_detected", False),
-            "beneficiary_dispersion_ratio": graph.get("beneficiary_dispersion_ratio", 0.0)
-        },
-        "kyc": {
-            "occupation": customer.get("occupation", "Not available"),
-            "risk_level": customer.get("risk_level", "Not available"),
-            "account_age_days": customer.get("account_age_days", "Not available")
-        }
+        "deterministic_primary": primary_typology,
+        "all_detected": all_typologies,
+        "evidence_details": evidence_details,
+        "transaction_count": len(ledger)
     }
-    
-    user_prompt = f"Evidence Summary:\n{json.dumps(evidence_summary, indent=2, default=str)}"
-    
+
     try:
-        response = llm.generate(system_prompt, user_prompt)
-        
-        # 1. Check for JSON structure
-        if "{" not in response or "}" not in response:
-            state["typology_classification"] = "UNKNOWN"
-            state["typology_rationale"] = f"Validation Error: LLM response did not contain JSON object. Response snippet: {response[:150]}"
-            return state
-
-        json_str = response[response.find("{"):response.rfind("}")+1]
-        
-        # 2. Parse JSON
-        try:
-            result = json.loads(json_str)
-        except json.JSONDecodeError as err:
-            state["typology_classification"] = "UNKNOWN"
-            state["typology_rationale"] = f"Validation Error: Malformed JSON returned by LLM ({str(err)})."
-            return state
-
-        # 3. Check for dictionary type
-        if not isinstance(result, dict):
-            state["typology_classification"] = "UNKNOWN"
-            state["typology_rationale"] = "Validation Error: JSON response is not a valid JSON dictionary."
-            return state
-
-        # 4. Check for missing typology key
-        if "typology" not in result or not result["typology"]:
-            state["typology_classification"] = "UNKNOWN"
-            state["typology_rationale"] = "Validation Error: Response missing required 'typology' field."
-            return state
-
-        raw_typology = str(result["typology"]).strip().upper()
-        rationale = str(result.get("rationale", "")).strip()
-
-        # 5. Validate against allowed set
-        if raw_typology not in ALLOWED_TYPOLOGIES:
-            state["typology_classification"] = "UNKNOWN"
-            state["typology_rationale"] = f"Validation Error: Invalid typology '{raw_typology}' returned. Must be one of {sorted(list(ALLOWED_TYPOLOGIES))}."
-            return state
-
-        # Valid typology
-        state["typology_classification"] = raw_typology
-        state["typology_rationale"] = rationale if rationale else "Typology verified by LLM."
-
+        response = llm.generate(system_prompt, f"Typology Evidence Payload:\n{json.dumps(user_payload, indent=2, default=str)}")
+        if "{" in response and "}" in response:
+            json_str = response[response.find("{"):response.rfind("}")+1]
+            res = json.loads(json_str)
+            raw_typ = str(res.get("typology", "")).upper()
+            rationale = res.get("rationale", "")
+            if raw_typ in ALLOWED_TYPOLOGIES:
+                state["typology_classification"] = raw_typ
+                state["typology_rationale"] = rationale
+            else:
+                state["typology_classification"] = primary_typology
+                state["typology_rationale"] = f"Deterministic detection identified: {primary_typology}. LLM suggested {raw_typ}."
+        else:
+            state["typology_classification"] = primary_typology
+            state["typology_rationale"] = f"Deterministic detection identified: {primary_typology}."
     except Exception as e:
-        state["typology_classification"] = "UNKNOWN"
-        state["typology_rationale"] = f"Failed to classify typology via LLM: {str(e)}"
-        
+        state["typology_classification"] = primary_typology
+        state["typology_rationale"] = f"Deterministic detection identified: {primary_typology} (LLM verification bypassed: {str(e)})."
+
+    state["detected_typology_evidence"] = evidence_details
     return state

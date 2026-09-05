@@ -30,11 +30,17 @@ if HAS_SQLALCHEMY:
     class Customer(Base):
         __tablename__ = "customers"
 
-        customer_id = Column(String(20), primary_key=True, index=True)
+        customer_id = Column(String(50), primary_key=True, index=True)
         name = Column(String(100))
-        risk_level = Column(String(20))
-        account_age_days = Column(Integer)
+        risk_level = Column(String(20), default="LOW")
+        account_age_days = Column(Integer, default=365)
         occupation = Column(String(100), nullable=True)
+        declared_income = Column(Numeric(15, 2), nullable=True, default=500000.0)
+        date_of_birth = Column(String(20), nullable=True)
+        kyc_status = Column(String(30), default="VERIFIED")
+        onboarding_date = Column(DateTime, default=datetime.utcnow)
+        address = Column(String(200), nullable=True)
+        country = Column(String(50), default="IND")
         created_at = Column(DateTime, default=datetime.utcnow)
 
         accounts = relationship("Account", back_populates="customer")
@@ -46,10 +52,14 @@ if HAS_SQLALCHEMY:
     class Account(Base):
         __tablename__ = "accounts"
 
-        account_id = Column(String(20), primary_key=True, index=True)
-        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
+        account_id = Column(String(50), primary_key=True, index=True)
+        customer_id = Column(String(50), ForeignKey("customers.customer_id"))
         account_type = Column(String(30))
-        status = Column(String(20))
+        status = Column(String(20), default="ACTIVE")
+        opening_date = Column(DateTime, default=datetime.utcnow)
+        balance = Column(Numeric(15, 2), default=0.0)
+        currency = Column(String(10), default="INR")
+        branch_country = Column(String(50), default="IND")
         created_at = Column(DateTime, default=datetime.utcnow)
 
         customer = relationship("Customer", back_populates="accounts")
@@ -58,8 +68,8 @@ if HAS_SQLALCHEMY:
     class Beneficiary(Base):
         __tablename__ = "beneficiaries"
 
-        beneficiary_id = Column(String(20), primary_key=True, index=True)
-        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
+        beneficiary_id = Column(String(50), primary_key=True, index=True)
+        customer_id = Column(String(50), ForeignKey("customers.customer_id"))
         name = Column(String(100))
         account_number = Column(String(50))
         created_at = Column(DateTime, default=datetime.utcnow)
@@ -70,25 +80,31 @@ if HAS_SQLALCHEMY:
     class Device(Base):
         __tablename__ = "devices"
 
-        device_id = Column(String(30), primary_key=True)
-        customer_id = Column(String(20), ForeignKey("customers.customer_id"), primary_key=True)
+        device_id = Column(String(50), primary_key=True)
+        customer_id = Column(String(50), ForeignKey("customers.customer_id"), primary_key=True)
         device_type = Column(String(50))
-        first_seen = Column(DateTime)
-        last_seen = Column(DateTime)
+        first_seen = Column(DateTime, default=datetime.utcnow)
+        last_seen = Column(DateTime, default=datetime.utcnow)
 
         customer = relationship("Customer", back_populates="devices")
 
     class Transaction(Base):
         __tablename__ = "transactions"
 
-        transaction_id = Column(String(20), primary_key=True, index=True)
-        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
-        account_id = Column(String(20), ForeignKey("accounts.account_id"))
-        beneficiary_id = Column(String(20), ForeignKey("beneficiaries.beneficiary_id"), nullable=True)
+        transaction_id = Column(String(50), primary_key=True, index=True)
+        customer_id = Column(String(50), ForeignKey("customers.customer_id"))
+        account_id = Column(String(50), ForeignKey("accounts.account_id"))
+        receiver_account_id = Column(String(50), nullable=True)
+        beneficiary_id = Column(String(50), ForeignKey("beneficiaries.beneficiary_id"), nullable=True)
         amount = Column(Numeric(15, 2))
-        transaction_type = Column(String(30))
+        currency = Column(String(10), default="INR")
+        transaction_type = Column(String(30)) # WIRE, TRANSFER, CASH_DEPOSIT, ACH, PAYMENT
+        channel = Column(String(30), default="MOBILE_APP")
+        status = Column(String(20), default="COMPLETED")
+        description = Column(String(255), nullable=True)
+        device_id = Column(String(50), nullable=True)
+        ip_address = Column(String(45), nullable=True)
         transaction_timestamp = Column(DateTime, default=datetime.utcnow)
-        status = Column(String(20))
 
         customer = relationship("Customer", back_populates="transactions")
         account = relationship("Account", back_populates="transactions")
@@ -98,12 +114,15 @@ if HAS_SQLALCHEMY:
     class Alert(Base):
         __tablename__ = "alerts"
 
-        alert_id = Column(String(20), primary_key=True, index=True)
-        customer_id = Column(String(20), ForeignKey("customers.customer_id"))
-        transaction_id = Column(String(20), ForeignKey("transactions.transaction_id"))
+        alert_id = Column(String(50), primary_key=True, index=True)
+        customer_id = Column(String(50), ForeignKey("customers.customer_id"))
+        transaction_id = Column(String(50), ForeignKey("transactions.transaction_id"))
         alert_type = Column(String(100))
+        triggered_rules = Column(JSON, nullable=True)
+        initial_risk = Column(Numeric(5, 2), default=50.0)
         risk_score = Column(Numeric(5, 2))
-        status = Column(String(30), default="OPEN") # OPEN, UNDER_INVESTIGATION, RESOLVED, ESCALATED
+        description = Column(String(255), nullable=True)
+        status = Column(String(30), default="OPEN") # OPEN, UNDER_INVESTIGATION, RESOLVED, ESCALATED, CLOSED
         created_at = Column(DateTime, default=datetime.utcnow)
 
         customer = relationship("Customer", back_populates="alerts")
@@ -125,6 +144,8 @@ if HAS_SQLALCHEMY:
         id = Column(String, primary_key=True, index=True) # CASE_ALT_...
         alert_id = Column(String, unique=True)
         entity_id = Column(String)
+        objective = Column(String, nullable=True)
+        typology = Column(String, nullable=True)
         status = Column(String, default="OPEN") # OPEN, CLOSED
         priority_score = Column(Float)
         priority_band = Column(String) # CRITICAL, HIGH, MEDIUM, LOW
@@ -136,6 +157,17 @@ if HAS_SQLALCHEMY:
         created_at = Column(DateTime, default=datetime.utcnow)
         updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    class RegulatoryGuidance(Base):
+        __tablename__ = "regulatory_guidance"
+
+        id = Column(String(50), primary_key=True)
+        topic = Column(String(100), index=True) # STRUCTURING, FAN_IN, FAN_OUT, RAPID_PASS_THROUGH, CIRCULAR_FLOW, MULE_ACCOUNT
+        title = Column(String(200))
+        source_org = Column(String(100)) # FATF, FinCEN, FIU-IND, RBI
+        section_ref = Column(String(100))
+        content_summary = Column(String(1000))
+        retrieval_date = Column(DateTime, default=datetime.utcnow)
+
 else:
     class Customer: pass
     class Account: pass
@@ -145,6 +177,7 @@ else:
     class Alert: pass
     class RawAlert: pass
     class InvestigationCase: pass
+    class RegulatoryGuidance: pass
 
 # ==========================================
 # Pydantic Models (API / LangGraph)

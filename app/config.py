@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     groq_api_key: str = "gsk_placeholder"
     groq_model: str = "llama-3.3-70b-versatile"
     mock_llm_mode: bool = False
+    demo_mode: bool = False
     
     database_url: str = "sqlite:///./nova.db"
     

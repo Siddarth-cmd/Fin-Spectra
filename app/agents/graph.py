@@ -9,6 +9,7 @@ from .nodes.graph_analyst import graph_analyst_node
 from .nodes.kyc_verifier import kyc_verifier_node
 from .nodes.plan_checker import plan_checker_node
 from .nodes.typology_classifier import typology_classifier_node
+from .nodes.regulatory_agent import regulatory_agent_node
 from .nodes.scoring_node import scoring_node
 from .nodes.case_assembler import case_assembler_node
 
@@ -53,6 +54,7 @@ def create_investigation_graph():
     builder.add_node("kyc_verifier", kyc_verifier_node)
     builder.add_node("plan_checker", plan_checker_node)
     builder.add_node("typology_classifier", typology_classifier_node)
+    builder.add_node("regulatory_agent", regulatory_agent_node)
     builder.add_node("scoring_node", scoring_node)
     builder.add_node("case_assembler", case_assembler_node)
     
@@ -85,8 +87,9 @@ def create_investigation_graph():
         }
     )
     
-    # Linear Downstream Sequence: Typology -> Scoring -> Case Assembler -> END
-    builder.add_edge("typology_classifier", "scoring_node")
+    # Linear Downstream Sequence: Typology -> Regulatory -> Scoring -> Case Assembler -> END
+    builder.add_edge("typology_classifier", "regulatory_agent")
+    builder.add_edge("regulatory_agent", "scoring_node")
     builder.add_edge("scoring_node", "case_assembler")
     builder.add_edge("case_assembler", END)
     

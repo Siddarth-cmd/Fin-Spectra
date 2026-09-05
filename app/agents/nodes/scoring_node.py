@@ -4,80 +4,84 @@ from ...models.schema import InvestigationCase
 
 def scoring_node(state: InvestigationState) -> InvestigationState:
     """
-    Weighted Multi-Factor Composite Scoring Model:
-    Final = 0.35 * Phase1 + 0.25 * Behavior + 0.25 * Graph + 0.15 * KYC
-    
-    Thresholds:
-    - <= 40.0: ALLOW
-    - <= 75.0: REVIEW
-    - > 75.0:  BLOCK
+    Phase 12 & 13: Transparent Risk Engine & Explainable Decision
+    Derives risk score reproducibly from factual findings with explicit factor values, weights, and contributions.
     """
-    trigger_evidence = state.get("trigger_evidence", {})
-    customer = trigger_evidence.get("customer") or {}
+    behavior = state.get("behavioral_metrics") or {}
+    graph = state.get("graph_metrics") or {}
+    kyc = state.get("kyc_metrics") or {}
+    typology_ev = state.get("detected_typology_evidence") or {}
+    customer = (state.get("trigger_evidence") or {}).get("customer") or {}
 
-    # 1. Phase 1 Prior Sub-Score (0-100)
-    phase1_score = min(max(float(state.get("raw_priority_score", 0.0)), 0.0), 100.0)
+    factors = []
 
-    # 2. Behavioral Sub-Score (0-100)
-    behavior = state.get("behavioral_metrics", {})
+    # 1. Behavior Anomaly (Z-Score & Velocity)
     z_score = float(behavior.get("velocity_z_score", 0.0))
-    pass_through = float(behavior.get("pass_through_ratio", 0.0))
+    b_val = min(z_score * 20.0, 100.0)
+    b_contrib = 0.25 * b_val
+    factors.append({
+        "factor_name": "Behavioral Velocity Anomaly (Z-Score)",
+        "factor_value": f"Z-Score = {z_score:.2f}σ",
+        "weight": 0.25,
+        "raw_score": round(b_val, 1),
+        "contribution": round(b_contrib, 2),
+        "source": "ledger_history"
+    })
 
-    if z_score > 3.0:
-        behavior_base = 100.0
-    elif z_score > 1.5:
-        behavior_base = 60.0
-    else:
-        behavior_base = 10.0
+    # 2. KYC Income Activity Ratio Mismatch
+    ratio = float(kyc.get("income_activity_ratio", 1.0))
+    k_val = min(ratio * 25.0, 100.0) if ratio > 1.0 else 10.0
+    k_contrib = 0.20 * k_val
+    factors.append({
+        "factor_name": "KYC Income Activity Mismatch",
+        "factor_value": f"Turnover/Income Ratio = {ratio:.2f}x",
+        "weight": 0.20,
+        "raw_score": round(k_val, 1),
+        "contribution": round(k_contrib, 2),
+        "source": "customers"
+    })
 
-    if pass_through > 0.9:
-        behavior_base += 20.0
+    # 3. Typology Detection Severity
+    t_val = 0.0
+    if "STRUCTURING" in typology_ev:
+        t_val += 40.0
+    if "RAPID_PASS_THROUGH" in typology_ev:
+        t_val += 45.0
+    if "CIRCULAR_FLOW" in typology_ev:
+        t_val += 50.0
+    if "FAN_IN" in typology_ev or "FAN_OUT" in typology_ev:
+        t_val += 30.0
+    t_val = min(t_val, 100.0) if t_val > 0 else 15.0
+    t_contrib = 0.30 * t_val
+    factors.append({
+        "factor_name": "Transaction Typology Severity",
+        "factor_value": f"Detected: {state.get('typology_classification', 'UNKNOWN')}",
+        "weight": 0.30,
+        "raw_score": round(t_val, 1),
+        "contribution": round(t_contrib, 2),
+        "source": "detected_typology_evidence"
+    })
 
-    behavior_score = min(behavior_base, 100.0)
+    # 4. Graph Network Topology Risk
+    g_val = 0.0
+    if graph.get("cycles_detected"):
+        g_val += 50.0
+    if graph.get("target_out_degree", 0) >= 2 or graph.get("target_in_degree", 0) >= 2:
+        g_val += 35.0
+    g_val = min(g_val, 100.0) if g_val > 0 else 10.0
+    g_contrib = 0.25 * g_val
+    factors.append({
+        "factor_name": "Graph Network Topology Risk",
+        "factor_value": f"Cycles: {graph.get('cycles_detected')}, In/Out Deg: {graph.get('target_in_degree',0)}/{graph.get('target_out_degree',0)}",
+        "weight": 0.25,
+        "raw_score": round(g_val, 1),
+        "contribution": round(g_contrib, 2),
+        "source": "transactions (NetworkX graph)"
+    })
 
-    # 3. Graph Network Sub-Score (0-100)
-    graph = state.get("graph_metrics", {})
-    graph_base = 0.0
+    final_score = round(sum(f["contribution"] for f in factors), 2)
+    final_score = min(max(final_score, 0.0), 100.0)
 
-    if graph.get("self_transfer_detected") or graph.get("circular_paths_detected"):
-        graph_base += 50.0
-
-    if graph.get("multi_device_multi_beneficiary_flag") or graph.get("shell_intermediaries_suspected"):
-        graph_base += 30.0
-
-    dispersion = float(graph.get("beneficiary_dispersion_ratio", 0.0))
-    if dispersion > 0.7:
-        graph_base += 20.0
-
-    graph_score = min(graph_base, 100.0)
-
-    # 4. KYC Sub-Score (0-100)
-    kyc_base = 0.0
-    risk_level = str(customer.get("risk_level", "LOW")).upper()
-    if risk_level == "HIGH":
-        kyc_base += 50.0
-    elif risk_level == "MEDIUM":
-        kyc_base += 25.0
-
-    acc_age = int(customer.get("account_age_days", 999))
-    if acc_age < 180:
-        kyc_base += 20.0
-
-    kyc_notes = state.get("kyc_notes", "")
-    if "ALERT" in kyc_notes:
-        kyc_base += 30.0
-
-    kyc_score = min(kyc_base, 100.0)
-
-    # 5. Composite Final Score & Decision Thresholds
-    final_score = round(
-        (0.35 * phase1_score) +
-        (0.25 * behavior_score) +
-        (0.25 * graph_score) +
-        (0.15 * kyc_score),
-        2
-    )
-    final_score = min(final_score, 100.0)
     state["final_risk_score"] = final_score
 
     if final_score <= 40.0:
@@ -88,27 +92,28 @@ def scoring_node(state: InvestigationState) -> InvestigationState:
         decision = "BLOCK"
 
     state["decision"] = decision
-
-    # Subscore dictionary & concise explanation
-    subscores = {
-        "phase1_prior": phase1_score,
-        "behavior": behavior_score,
-        "graph": graph_score,
-        "kyc": kyc_score
+    state["risk_factors_breakdown"] = factors
+    state["risk_subscores"] = {
+        "kyc": round(k_val, 1),
+        "behavior": round(b_val, 1),
+        "graph": round(g_val, 1),
+        "typology": round(t_val, 1),
     }
-    explanation = (
-        f"Composite Score: {final_score}/100 -> Decision: {decision}. "
-        f"Breakdown: Phase1 Prior ({phase1_score:.1f} x 35%), "
-        f"Behavior ({behavior_score:.1f} x 25%), "
-        f"Graph ({graph_score:.1f} x 25%), "
-        f"KYC ({kyc_score:.1f} x 15%)."
-    )
 
-    # Store subscores and explanation in state
-    state["behavioral_metrics"]["risk_subscores"] = subscores
-    state["behavioral_metrics"]["risk_explanation"] = explanation
+    # Detailed Explainable Findings
+    state["explainable_findings"] = {
+        "summary": f"Alert scored {final_score}/100 resulting in {decision} verdict.",
+        "primary_typology": state.get("typology_classification", "UNKNOWN"),
+        "key_evidence": [
+            f"Behavior: {factors[0]['factor_value']} (Contrib: {factors[0]['contribution']} pts)",
+            f"KYC: {factors[1]['factor_value']} (Contrib: {factors[1]['contribution']} pts)",
+            f"Typology: {factors[2]['factor_value']} (Contrib: {factors[2]['contribution']} pts)",
+            f"Graph Topology: {factors[3]['factor_value']} (Contrib: {factors[3]['contribution']} pts)"
+        ],
+        "recommended_next_action": "File Suspicious Activity Report (SAR) with FIU" if decision == "BLOCK" else "Perform enhanced due diligence"
+    }
 
-    # Persist final state snapshot to Neon PostgreSQL
+    # Persist case to DB
     db = SessionLocal()
     try:
         case = db.query(InvestigationCase).filter(InvestigationCase.id == state["case_id"]).first()
@@ -117,8 +122,8 @@ def scoring_node(state: InvestigationState) -> InvestigationState:
                 id=state["case_id"],
                 alert_id=state["alert_id"],
                 entity_id=state["entity_id"],
-                priority_score=phase1_score,
-                priority_band="HIGH" if phase1_score > 70 else "MEDIUM",
+                priority_score=final_score,
+                priority_band="CRITICAL" if final_score > 85 else ("HIGH" if final_score > 70 else "MEDIUM"),
                 status="CLOSED"
             )
             db.add(case)

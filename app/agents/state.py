@@ -45,7 +45,16 @@ class InvestigationState(TypedDict):
     # Loop tracking
     loop_count: int
     missing_evidence: List[str]
+    evidence_found: bool
     
+    # Extended Agent Metrics & Lineage
+    kyc_metrics: Dict[str, Any]
+    regulatory_findings: Dict[str, Any]
+    detected_typology_evidence: Dict[str, Any]
+    risk_factors_breakdown: List[Dict[str, Any]]
+    explainable_findings: Dict[str, Any]
+    evidence_provenance_lineage: List[Dict[str, Any]]
+
     # Final Output
     dossier: str
     final_risk_score: float
@@ -85,6 +94,7 @@ def create_initial_state_from_neon_alert(enriched_alert: Dict[str, Any]) -> Inve
         "investigation_plan": [],
         "loop_count": 0,
         "missing_evidence": [],
+        "evidence_found": True,
         "dossier": "",
         "final_risk_score": 0.0,
         "decision": ""

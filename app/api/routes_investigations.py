@@ -112,7 +112,35 @@ def get_case_detail(case_id: str, db: Session = Depends(get_db)):
     state = case.state_snapshot_json or {}
     behavioral = state.get("behavioral_metrics") or {}
     graph = state.get("graph_metrics") or {}
-    subscores = behavioral.get("risk_subscores") or {}
+    subscores = state.get("risk_subscores") or behavioral.get("risk_subscores") or {}
+
+    # Extract KYC subscore with fallback to risk factors breakdown or kyc_metrics
+    kyc_score = float(subscores.get("kyc", 0.0))
+    if kyc_score == 0.0:
+        factors = state.get("risk_factors_breakdown") or []
+        for f in factors:
+            if "KYC" in f.get("factor_name", "").upper():
+                kyc_score = float(f.get("raw_score", 0.0))
+                break
+        if kyc_score == 0.0:
+            kyc_metrics = state.get("kyc_metrics") or {}
+            ratio = float(kyc_metrics.get("income_activity_ratio", 1.0))
+            kyc_score = min(ratio * 25.0, 100.0) if ratio > 1.0 else 10.0
+
+    # Extract Behavior subscore with fallback
+    behavior_score = float(subscores.get("behavior", 0.0))
+    if behavior_score == 0.0:
+        z_score = float(behavioral.get("velocity_z_score", 0.0))
+        behavior_score = min(z_score * 20.0, 100.0) if z_score > 0 else 0.0
+
+    # Extract Graph subscore with fallback
+    graph_score = float(subscores.get("graph", 0.0))
+    if graph_score == 0.0:
+        factors = state.get("risk_factors_breakdown") or []
+        for f in factors:
+            if "GRAPH" in f.get("factor_name", "").upper():
+                graph_score = float(f.get("raw_score", 0.0))
+                break
 
     # Build structured task list with agent mapping
     task_list = state.get("task_list") or []
@@ -208,9 +236,9 @@ def get_case_detail(case_id: str, db: Session = Depends(get_db)):
             "decision": case.decision,
             "subscores": {
                 "phase1_prior": subscores.get("phase1_prior", 0.0),
-                "behavior": subscores.get("behavior", 0.0),
-                "graph": subscores.get("graph", 0.0),
-                "kyc": subscores.get("kyc", 0.0),
+                "behavior": behavior_score,
+                "graph": graph_score,
+                "kyc": kyc_score,
             },
             "explanation": behavioral.get("risk_explanation", ""),
         },
