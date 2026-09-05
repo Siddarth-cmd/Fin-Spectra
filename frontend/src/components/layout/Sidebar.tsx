@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   GitFork,
   ShieldCheck,
-  MoreVertical,
   ShieldAlert,
 } from "lucide-react";
 
@@ -84,26 +83,6 @@ export const Sidebar: React.FC = () => {
               );
             })}
           </nav>
-        </div>
-      </div>
-
-      {/* Bottom Analyst Profile Chip */}
-      <div className="p-3 border-t border-white/5 bg-[#070A11]/60">
-        <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0E1524] border border-cyan-500/15 hover:border-cyan-500/30 transition-all cursor-pointer">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-xs font-bold text-black ring-2 ring-cyan-400/20">
-              AR
-            </div>
-            <div className="truncate">
-              <div className="text-xs font-semibold text-slate-200 truncate">
-                Alex Rivera
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                Sr AML Analyst - Tier 1
-              </div>
-            </div>
-          </div>
-          <MoreVertical className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
         </div>
       </div>
     </aside>
