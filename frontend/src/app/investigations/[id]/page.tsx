@@ -6,6 +6,7 @@ import { fetchInvestigationDetail } from "@/lib/api";
 import { InvestigationResult } from "@/lib/types";
 import { InvestigationPlannerPanel } from "@/components/investigation/InvestigationPlannerPanel";
 import { EvidenceWorkspace } from "@/components/investigation/EvidenceWorkspace";
+import { KycVerificationPanel } from "@/components/investigation/KycVerificationPanel";
 import { BehaviorAnalysisPanel } from "@/components/investigation/BehaviorAnalysisPanel";
 import { GraphMetricsPanel } from "@/components/investigation/GraphMetricsPanel";
 import { RiskAssessmentPanel } from "@/components/investigation/RiskAssessmentPanel";
@@ -16,6 +17,7 @@ import {
   AlertTriangle,
   ClipboardList,
   Search,
+  UserCheck,
   Activity,
   GitBranch,
   Shield,
@@ -25,18 +27,20 @@ import {
 type Tab =
   | "planner"
   | "evidence"
+  | "kyc"
   | "behavior"
   | "graph"
   | "risk"
   | "sar";
 
 const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [
-  { key: "planner", label: "Investigation Plan", icon: <ClipboardList className="w-4 h-4" /> },
-  { key: "evidence", label: "Evidence", icon: <Search className="w-4 h-4" /> },
-  { key: "behavior", label: "Behavioral Analysis", icon: <Activity className="w-4 h-4" /> },
-  { key: "graph", label: "Graph Analysis", icon: <GitBranch className="w-4 h-4" /> },
-  { key: "risk", label: "Risk Assessment", icon: <Shield className="w-4 h-4" /> },
-  { key: "sar", label: "Case / SAR", icon: <FileText className="w-4 h-4" /> },
+  { key: "planner", label: "Task Planner Agent", icon: <ClipboardList className="w-4 h-4" /> },
+  { key: "evidence", label: "Evidence Agent", icon: <Search className="w-4 h-4" /> },
+  { key: "kyc", label: "KYC Verifier Agent", icon: <UserCheck className="w-4 h-4" /> },
+  { key: "behavior", label: "Behaviour Agent", icon: <Activity className="w-4 h-4" /> },
+  { key: "graph", label: "Graph Analyst Agent", icon: <GitBranch className="w-4 h-4" /> },
+  { key: "risk", label: "Risk Scoring Agent", icon: <Shield className="w-4 h-4" /> },
+  { key: "sar", label: "Case Assembly Agent", icon: <FileText className="w-4 h-4" /> },
 ];
 
 const DECISION_COLORS: Record<string, string> = {
@@ -201,6 +205,12 @@ export default function InvestigationDetailPage() {
         )}
         {activeTab === "evidence" && (
           <EvidenceWorkspace evidenceSummary={result.evidence_summary} />
+        )}
+        {activeTab === "kyc" && (
+          <KycVerificationPanel
+            kycNotes={result.evidence_summary?.kyc_notes || ""}
+            riskScoring={result.risk_scoring}
+          />
         )}
         {activeTab === "behavior" && (
           <BehaviorAnalysisPanel metrics={result.behavioral_metrics} />

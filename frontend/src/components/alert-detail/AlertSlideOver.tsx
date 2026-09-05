@@ -239,8 +239,10 @@ export function AlertSlideOver({ alert, onClose }: AlertSlideOverProps) {
                   )}
                   {investigationStatus === "running" && (
                     <div>
-                      <p className="text-sm font-semibold text-white">Investigation running</p>
-                      <p className="text-xs text-slate-400">LangGraph agents executing...</p>
+                      <p className="text-sm font-semibold text-white">Multi-Agent Investigation Executing...</p>
+                      <p className="text-xs text-cyan-400 mt-0.5">
+                        Task Planner → Evidence Retrieval → KYC Verifier → Behaviour Agent → Graph Analyst → Case Assembly
+                      </p>
                     </div>
                   )}
                   {investigationStatus === "completed" && investigationResult && (

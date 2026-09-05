@@ -51,15 +51,15 @@ const STATUS_CONFIG: Record<
 };
 
 const PIPELINE_NODES = [
-  { key: "task_planner", label: "Task Planner" },
-  { key: "evidence_retrieval", label: "Evidence" },
-  { key: "kyc_verifier", label: "KYC" },
-  { key: "behavior_analyzer", label: "Behavior" },
-  { key: "graph_analyst", label: "Graph" },
-  { key: "plan_checker", label: "Plan Check" },
-  { key: "typology_classifier", label: "Typology" },
-  { key: "scoring_node", label: "Scoring" },
-  { key: "case_assembler", label: "SAR" },
+  { key: "task_planner", label: "Task Planner Agent" },
+  { key: "evidence_retrieval", label: "Evidence Retrieval Agent" },
+  { key: "kyc_verifier", label: "KYC Verifier Agent" },
+  { key: "behavior_analyzer", label: "Behaviour Agent" },
+  { key: "graph_analyst", label: "Graph Analyst Agent" },
+  { key: "plan_checker", label: "Plan Checker Agent" },
+  { key: "typology_classifier", label: "Typology Agent" },
+  { key: "scoring_node", label: "Scoring Agent" },
+  { key: "case_assembler", label: "Case Assembly Agent" },
 ];
 
 export function InvestigationPlannerPanel({
