@@ -135,3 +135,38 @@ class AlertRepository:
         except Exception as err:
             self.db.rollback()
             raise err
+
+    def complete_alert(self, alert_id: str) -> Optional[Alert]:
+        """
+        Transitions an alert currently UNDER_INVESTIGATION to CLOSED in Neon DB
+        after successful InvestigationCase persistence.
+        """
+        try:
+            alert = self.db.query(Alert).filter(Alert.alert_id == alert_id).first()
+            if not alert:
+                return None
+
+            alert.status = "CLOSED"
+            self.db.commit()
+            self.db.refresh(alert)
+            return alert
+        except Exception as err:
+            self.db.rollback()
+            raise err
+
+    def fail_alert(self, alert_id: str, new_status: str = "FAILED") -> Optional[Alert]:
+        """
+        Transitions an alert's status upon investigation failure (e.g. FAILED or reset to OPEN).
+        """
+        try:
+            alert = self.db.query(Alert).filter(Alert.alert_id == alert_id).first()
+            if not alert:
+                return None
+
+            alert.status = new_status
+            self.db.commit()
+            self.db.refresh(alert)
+            return alert
+        except Exception as err:
+            self.db.rollback()
+            raise err
