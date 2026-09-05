@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   GitFork,
   ShieldCheck,
-  Gauge,
   MoreVertical,
   ShieldAlert,
 } from "lucide-react";
@@ -24,7 +23,7 @@ const navItems: NavItem[] = [
   { name: "Alert Queue", href: "/alert-queue", icon: AlertTriangle },
   { name: "Investigation", href: "/investigations", icon: GitFork },
   { name: "Audit Trail", href: "/audit-trail", icon: ShieldCheck },
-  { name: "Evaluation", href: "/evaluation", icon: Gauge },
+
 ];
 
 export const Sidebar: React.FC = () => {
