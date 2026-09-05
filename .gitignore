@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .next/
+node_modules/
+frontend/node_modules/
+
