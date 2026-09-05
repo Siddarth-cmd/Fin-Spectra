@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import Base, engine
-from .api import routes_investigations, routes_alerts
+from .api import routes_investigations, routes_alerts, routes_audit
 
 # Create DB tables on startup
 Base.metadata.create_all(bind=engine)
@@ -24,6 +24,7 @@ app.add_middleware(
 # Mount API routers
 app.include_router(routes_investigations.router, prefix="/api/investigations", tags=["Investigations"])
 app.include_router(routes_alerts.router, prefix="/api", tags=["Alerts & Summary"])
+app.include_router(routes_audit.router, prefix="/api", tags=["Audit Trail"])
 
 @app.get("/api/health")
 def health():

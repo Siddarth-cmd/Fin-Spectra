@@ -149,3 +149,30 @@ export async function pollInvestigation(
   }
   return null;
 }
+
+// ─── Audit Trail ─────────────────────────────────────────────────────────────
+
+export interface AuditLogItem {
+  id: string;
+  alert_id?: string;
+  entity_id?: string;
+  objective?: string;
+  typology?: string;
+  status: string;
+  priority_score?: number;
+  priority_band?: string;
+  final_risk_score?: number;
+  decision?: string;
+  created_at?: string;
+  updated_at?: string;
+  summary_notes?: string;
+}
+
+export async function fetchAuditLogs(status?: string): Promise<AuditLogItem[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return apiFetch<AuditLogItem[]>(`/api/audit/logs${qs}`);
+}
+
+export function getAuditPdfUrl(caseId: string): string {
+  return `${API_BASE}/api/audit/logs/${encodeURIComponent(caseId)}/pdf`;
+}
